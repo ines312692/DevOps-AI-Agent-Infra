@@ -1,0 +1,65 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: devops-ai-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/manifest-generate-paths: .
+    notifications.argoproj.io/subscribe.on-sync-succeeded.slack: devops-alerts
+spec:
+  project: devops-ai
+
+  source:
+    repoURL: https://github.com/ines31/DevOps-AI-Agent-Infra.git
+    targetRevision: main
+    path: helm/devops-ai-agent
+    helm:
+      valueFiles:
+        - values-dev.yaml
+      parameters:
+        - name: image.tag
+          value: "latest"
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: devops-ai-dev
+
+  # Automatic sync policy
+  syncPolicy:
+    automated:
+      prune: true        # Delete resources not in Git
+      selfHeal: true     # Force desired state from Git
+      allowEmpty: false  # Don't delete everything if chart is empty
+
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Ignore differences for HPA-managed replicas
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+
+  # Health assessment
+  revisionHistoryLimit: 10
+
+  info:
+    - name: 'Environment'
+      value: 'Development'
+    - name: 'Auto-Sync'
+      value: 'Enabled'
+    - name: 'Owner'
+      value: 'DevOps Team'

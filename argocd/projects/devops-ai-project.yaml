@@ -1,0 +1,91 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: devops-ai
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: DevOps AI Agent Project - Anomaly Detection and Monitoring
+
+  # Source repositories
+  sourceRepos:
+    - 'https://github.com/your-username/DevOps-AI-Agent-Infra.git'
+    - 'https://github.com/ines312692/DevOps-AI-Agent.git'
+
+  # Destination clusters and namespaces
+  destinations:
+    - namespace: 'devops-ai-dev'
+      server: https://kubernetes.default.svc
+    - namespace: 'devops-ai-staging'
+      server: https://kubernetes.default.svc
+    - namespace: 'devops-ai-prod'
+      server: https://kubernetes.default.svc
+    - namespace: 'monitoring'
+      server: https://kubernetes.default.svc
+
+  # Cluster resource whitelist
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRole
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRoleBinding
+    - group: 'storage.k8s.io'
+      kind: StorageClass
+
+  # Namespace resource whitelist (empty means all)
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+
+  # Namespace resource blacklist (deny specific resources)
+  namespaceResourceBlacklist: []
+
+  # Roles for project-level RBAC
+  roles:
+    # Developers - read-only access to dev/staging
+    - name: developer
+      description: Read-only access for developers
+      policies:
+        - p, proj:devops-ai:developer, applications, get, devops-ai/devops-ai-dev, allow
+        - p, proj:devops-ai:developer, applications, get, devops-ai/devops-ai-staging, allow
+        - p, proj:devops-ai:developer, logs, get, devops-ai/*, allow
+      groups:
+        - developers
+
+    # DevOps Engineers - full access to dev/staging, sync access to prod
+    - name: devops-engineer
+      description: Full access to dev/staging, sync access to prod
+      policies:
+        - p, proj:devops-ai:devops-engineer, applications, *, devops-ai/devops-ai-dev, allow
+        - p, proj:devops-ai:devops-engineer, applications, *, devops-ai/devops-ai-staging, allow
+        - p, proj:devops-ai:devops-engineer, applications, sync, devops-ai/devops-ai-prod, allow
+        - p, proj:devops-ai:devops-engineer, applications, get, devops-ai/devops-ai-prod, allow
+      groups:
+        - devops-team
+
+    # SRE - full access to all environments
+    - name: sre
+      description: Full access to all environments
+      policies:
+        - p, proj:devops-ai:sre, applications, *, devops-ai/*, allow
+        - p, proj:devops-ai:sre, repositories, *, *, allow
+      groups:
+        - sre-team
+        - platform-team
+
+  # Sync windows (maintenance windows)
+  syncWindows:
+    # Production maintenance window
+    - kind: deny
+      schedule: '0 2 * * 0'  # Every Sunday at 2 AM
+      duration: 2h
+      applications:
+        - devops-ai-prod
+      manualSync: true  # Allow manual sync during window
+
+  # Orphaned resources monitoring
+  orphanedResources:
+    warn: true

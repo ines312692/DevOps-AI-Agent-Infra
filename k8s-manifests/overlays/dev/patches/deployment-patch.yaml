@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-ai-agent
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: devops-ai-agent
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          env:
+            - name: ENVIRONMENT
+              value: "development"
+            - name: LOG_LEVEL
+              value: "DEBUG"
+            - name: ENABLE_DEBUG
+              value: "true"

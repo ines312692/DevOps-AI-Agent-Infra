@@ -1,0 +1,33 @@
+# Helm
+*.tgz
+.helm/
+Chart.lock
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+.kube/
+
+# Secrets (NEVER commit secrets!)
+*secret*.yaml
+*secrets*.yaml
+*.key
+*.pem
+*.crt
+*.p12
+.env
+.env.*
+!.env.example
+
+# Sealed Secrets are OK (encrypted)
+!*sealed-secret*.yaml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary
