@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: devops-ai-staging
+
+bases:
+  - ../../base
+
+commonLabels:
+  environment: staging
+  tier: staging
+
+commonAnnotations:
+  environment: staging
+  auto-sync: "true"
+
+patchesStrategicMerge:
+  - patches/deployment-patch.yaml
+  - patches/hpa-patch.yaml
+
+configMapGenerator:
+  - name: devops-ai-config
+    behavior: merge
+    literals:
+      - ENVIRONMENT=staging
+      - LOG_LEVEL=INFO
+      - METRICS_SOURCE=prometheus
+      - DETECTION_METHOD=isolation_forest
+      - PROMETHEUS_URL=http://prometheus-server.monitoring:9090
+
+images:
+  - name: devops-ai-agent
+    newName: your-registry/devops-ai-agent
+    newTag: staging-1.0.0-rc
+
+namePrefix: staging-
+
+replicas:
+  - name: devops-ai-agent
+    count: 2

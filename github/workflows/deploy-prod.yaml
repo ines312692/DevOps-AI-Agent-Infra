@@ -162,7 +162,7 @@ jobs:
           sleep 10
           
           curl -f http://localhost:8501/healthz || exit 1
-          echo "✅ Staging health check passed"
+          echo " Staging health check passed"
 
   approve-production:
     name: Approve Production Deployment
@@ -232,7 +232,7 @@ jobs:
             -n devops-ai-prod \
             --timeout=10m
           
-          echo "✅ New deployment (${{ steps.get-color.outputs.new-color }}) is ready"
+          echo " New deployment (${{ steps.get-color.outputs.new-color }}) is ready"
 
       - name: Run Production Health Checks
         run: |
@@ -244,7 +244,7 @@ jobs:
           kubectl exec -n devops-ai-prod $POD_NAME -- \
             curl -f http://localhost:8501/healthz || exit 1
           
-          echo "✅ New deployment health check passed"
+          echo " New deployment health check passed"
 
       - name: Switch Traffic to New Deployment
         run: |
@@ -263,7 +263,7 @@ jobs:
             -l deployment-color=${{ steps.get-color.outputs.new-color }}
           
           # Check error rate from metrics
-          echo "✅ Deployment stable"
+          echo "Deployment stable"
 
       - name: Update ArgoCD Application
         run: |
@@ -300,7 +300,7 @@ jobs:
 
       - name: Rollback Deployment
         run: |
-          echo "🔄 Rolling back deployment..."
+          echo "Rolling back deployment..."
           helm rollback devops-ai-agent -n devops-ai-prod
           
           # Or switch back to previous color
@@ -310,7 +310,7 @@ jobs:
         uses: 8398a7/action-slack@v3
         with:
           status: failure
-          text: '⚠️ Production deployment failed and was rolled back!'
+          text: 'Production deployment failed and was rolled back!'
           webhook_url: ${{ secrets.SLACK_WEBHOOK }}
 
   notify:
@@ -324,7 +324,7 @@ jobs:
         uses: 8398a7/action-slack@v3
         with:
           status: success
-          text: '✅ Production deployment successful!'
+          text: 'Production deployment successful!'
           fields: repo,message,commit,author
           webhook_url: ${{ secrets.SLACK_WEBHOOK }}
 
@@ -333,6 +333,6 @@ jobs:
         uses: 8398a7/action-slack@v3
         with:
           status: failure
-          text: '❌ Production deployment failed!'
+          text: 'Production deployment failed!'
           fields: repo,message,commit,author
           webhook_url: ${{ secrets.SLACK_WEBHOOK }}

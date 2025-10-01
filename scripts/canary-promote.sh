@@ -66,7 +66,7 @@ log_info "Current canary weight: ${CURRENT_WEIGHT}%"
 
 # Special case: weight 0 = rollback to stable
 if [[ "$WEIGHT" -eq 0 ]]; then
-    log_warning "⚠️  This will route ALL traffic to stable version (rollback)"
+    log_warning "This will route ALL traffic to stable version (rollback)"
     read -p "Continue? (yes/no): " -r
     echo
     if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
@@ -77,7 +77,7 @@ fi
 
 # Special case: weight 100 = promote canary to stable
 if [[ "$WEIGHT" -eq 100 ]]; then
-    log_warning "⚠️  This will promote canary to stable (complete rollout)"
+    log_warning " This will promote canary to stable (complete rollout)"
     read -p "Continue? (yes/no): " -r
     echo
     if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
@@ -167,7 +167,7 @@ log_info "Checking error rates..."
 ERROR_COUNT=$(kubectl logs -n "$NAMESPACE" -l version=canary --tail=100 2>/dev/null | grep -i "error" | wc -l || echo "0")
 
 if [[ "$ERROR_COUNT" -gt 10 ]]; then
-    log_warning "⚠️  High error count detected in canary: $ERROR_COUNT errors in last 100 log lines"
+    log_warning "High error count detected in canary: $ERROR_COUNT errors in last 100 log lines"
     log_warning "Consider rolling back or investigating"
 else
     log_success "Error rate acceptable ($ERROR_COUNT errors)"
@@ -177,16 +177,14 @@ echo ""
 
 # Completion message based on weight
 if [[ "$WEIGHT" -eq 0 ]]; then
-    log_success "═══════════════════════════════════════════════"
+
     log_success "  Rollback completed - 100% traffic on stable"
-    log_success "═══════════════════════════════════════════════"
+
     echo ""
     log_info "Canary deployment can now be removed"
 
 elif [[ "$WEIGHT" -eq 100 ]]; then
-    log_success "═══════════════════════════════════════════════"
     log_success "  Canary promoted! - 100% traffic on canary"
-    log_success "═══════════════════════════════════════════════"
     echo ""
     log_info "Next steps:"
     echo "  1. Monitor application for 15-30 minutes"
@@ -195,9 +193,8 @@ elif [[ "$WEIGHT" -eq 100 ]]; then
     echo "  3. Update stable image tag to match canary"
 
 else
-    log_success "═══════════════════════════════════════════════"
+
     log_success "  Traffic distribution: ${WEIGHT}% canary, $((100-WEIGHT))% stable"
-    log_success "═══════════════════════════════════════════════"
     echo ""
     log_info "Recommended next steps:"
 
@@ -229,9 +226,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     REPORT_FILE="/tmp/canary-report-$(date +%Y%m%d-%H%M%S).txt"
 
     {
-        echo "================================="
         echo "Canary Deployment Report"
-        echo "================================="
         echo "Timestamp: $(date)"
         echo "Namespace: $NAMESPACE"
         echo "Release: $RELEASE_NAME"

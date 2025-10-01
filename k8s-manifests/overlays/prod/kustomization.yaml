@@ -15,18 +15,11 @@ commonAnnotations:
   auto-sync: "false"
   manual-approval: "required"
 
-namespace: devops-ai-prod
-
 # Blue-Green deployments (use these instead of standard deployment)
 resources:
   - blue-green/deployment-blue.yaml
   - blue-green/deployment-green.yaml
-  - blue-green/service.yaml
-  - blue-green/ingress.yaml
 
-patchesStrategicMerge:
-  - patches/pdb-patch.yaml
-  - patches/network-policy.yaml
 
 configMapGenerator:
   - name: devops-ai-config
@@ -42,7 +35,7 @@ configMapGenerator:
 
 images:
   - name: devops-ai-agent
-    newName: your-registry/devops-ai-agent
+    newName: inestmimi123/devops-ai-agent
     newTag: "1.0.0"  # Updated by CI/CD
 
 namePrefix: prod-

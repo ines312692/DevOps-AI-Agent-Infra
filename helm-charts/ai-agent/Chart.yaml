@@ -15,6 +15,5 @@ maintainers:
     email: ines.tmimi@ensit.u-tunis.tn
 sources:
   - https://github.com/ines312692/DevOps-AI-Agent
-  - https://github.com/your-username/DevOps-AI-Agent-Infra
+  - https://github.com/ines312692/DevOps-AI-Agent-Infra.git
 dependencies: []
-icon: https://raw.githubusercontent.com/your-username/DevOps-AI-Agent-Infra/main/docs/images/icon.png
