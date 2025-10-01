@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "devops-ai-agent.fullname" . }}-config
+  labels:
+    {{- include "devops-ai-agent.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    source:
+      kind: {{ .Values.config.metricsSource }}
+      {{- if eq .Values.config.metricsSource "csv" }}
+      path: {{ .Values.config.metricsPath }}
+      {{- else if eq .Values.config.metricsSource "prometheus" }}
+      url: {{ .Values.config.prometheusUrl }}
+      {{- end }}
+
+    detection:
+      method: {{ .Values.config.detectionMethod }}
+      zscore_threshold: {{ .Values.config.zscoreThreshold }}
+      rolling_window: {{ .Values.config.rollingWindow }}
+
+    notifier:
+      print: {{ .Values.config.enableNotifications }}
+      slack:
+        enabled: {{ if .Values.secrets.slackWebhookUrl }}true{{ else }}false{{ end }}
+      email:
+        enabled: {{ if .Values.secrets.emailSmtpPassword }}true{{ else }}false{{ end }}
+
+    runtime:
+      limit_alerts: {{ .Values.config.limitAlerts }}
+      log_level: {{ .Values.config.logLevel }}
