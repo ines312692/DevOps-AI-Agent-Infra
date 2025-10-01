@@ -1,0 +1,217 @@
+# Default values for devops-ai-agent
+# This is a YAML-formatted file.
+
+replicaCount: 2
+
+image:
+  repository: inestmimi123/devops-ai-agent
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8000"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+
+service:
+  type: ClusterIP
+  port: 8501
+  targetPort: 8501
+  metricsPort: 8000
+  annotations: {}
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: devops-ai.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: devops-ai-tls
+      hosts:
+        - devops-ai.local
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - devops-ai-agent
+          topologyKey: kubernetes.io/hostname
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+# Liveness and Readiness probes
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8501
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 8501
+  initialDelaySeconds: 15
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Application configuration
+config:
+  logLevel: INFO
+  metricsSource: csv
+  metricsPath: /app/data/sample_metrics.csv
+  detectionMethod: rolling_zscore
+  zscoreThreshold: 3.0
+  rollingWindow: 20
+  limitAlerts: 10
+  enableNotifications: true
+
+# Secrets (use external secret management in production)
+secrets:
+  slackWebhookUrl: ""
+  emailSmtpPassword: ""
+
+# Persistent storage for data
+persistence:
+  enabled: true
+  storageClass: "standard"
+  accessMode: ReadWriteOnce
+  size: 5Gi
+  mountPath: /app/data
+
+# Monitoring
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+
+  prometheusRule:
+    enabled: true
+    labels: {}
+    rules:
+      - alert: DevOpsAIAgentDown
+        expr: up{job="devops-ai-agent"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DevOps AI Agent is down"
+          description: "DevOps AI Agent has been down for more than 2 minutes."
+
+      - alert: HighAnomalyDetectionRate
+        expr: rate(devops_ai_anomalies_detected_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High anomaly detection rate"
+          description: "Anomaly detection rate is {{ $value }} per second."
+
+      - alert: HighProcessingLatency
+        expr: histogram_quantile(0.95, rate(devops_ai_processing_duration_seconds_bucket[5m])) > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High processing latency"
+          description: "95th percentile processing latency is {{ $value }}s."
+
+# Deployment strategy
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# Blue-Green deployment
+blueGreen:
+  enabled: false
+  activeColor: blue
+
+# Canary deployment
+canary:
+  enabled: false
+  weight: 10
+
+# Network Policy
+networkPolicy:
+  enabled: false
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+  egress:
+    - to:
+        - namespaceSelector: {}
+    - to:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 9090
