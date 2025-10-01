@@ -18,8 +18,6 @@ commonAnnotations:
   auto-sync: "true"
 
 # Override namespace in all resources
-namespace: devops-ai-dev
-
 # Patches for dev environment
 patchesStrategicMerge:
   - patches/deployment-patch.yaml

@@ -170,64 +170,64 @@ delete-staging: ## Delete staging deployment
 	@echo " Staging deleted"
 
 delete-prod: ## Delete production deployment (DANGEROUS!)
-	@echo "⚠️⚠️⚠️  DANGER: Deleting PRODUCTION deployment ⚠️⚠️⚠️"
+	@echo "DANGER: Deleting PRODUCTION deployment "
 	@read -p "Type 'DELETE-PRODUCTION' to continue: " confirm; \
 	if [ "$$confirm" != "DELETE-PRODUCTION" ]; then \
-		echo "❌ Deletion cancelled"; \
+		echo "Deletion cancelled"; \
 		exit 1; \
 	fi
 	helm uninstall $(RELEASE_NAME) -n $(NAMESPACE_PROD)
 	kubectl delete namespace $(NAMESPACE_PROD)
-	@echo "✅ Production deleted"
+	@echo " Production deleted"
 
 install-argocd: ## Install ArgoCD
-	@echo "📦 Installing ArgoCD..."
+	@echo " Installing ArgoCD..."
 	kubectl create namespace argocd || true
 	kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-	@echo "✅ ArgoCD installed"
-	@echo "📝 Get admin password: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath=\"{.data.password}\" | base64 -d"
-	@echo "🔌 Port forward: kubectl port-forward svc/argocd-server -n argocd 8080:443"
+	@echo "ArgoCD installed"
+	@echo "Get admin password: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath=\"{.data.password}\" | base64 -d"
+	@echo " Port forward: kubectl port-forward svc/argocd-server -n argocd 8080:443"
 
 deploy-argocd-apps: ## Deploy ArgoCD applications
-	@echo "📦 Deploying ArgoCD applications..."
+	@echo " Deploying ArgoCD applications..."
 	kubectl apply -f argocd/projects/devops-ai-project.yaml
 	kubectl apply -f argocd/applications/dev-application.yaml
 	kubectl apply -f argocd/applications/staging-application.yaml
 	kubectl apply -f argocd/applications/prod-application.yaml
-	@echo "✅ ArgoCD applications deployed"
+	@echo " ArgoCD applications deployed"
 
 install-prometheus: ## Install Prometheus stack
-	@echo "📦 Installing Prometheus stack..."
+	@echo " Installing Prometheus stack..."
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	helm repo update
 	helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
 		--namespace monitoring \
 		--create-namespace \
 		--wait
-	@echo "✅ Prometheus installed"
-	@echo "🔌 Access Grafana: kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80"
+	@echo " Prometheus installed"
+	@echo " Access Grafana: kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80"
 
 test-health: ## Test application health
-	@echo "🏥 Testing health endpoints..."
+	@echo " Testing health endpoints..."
 	@if curl -sf http://localhost:8501/healthz; then \
-		echo "✅ Health check passed"; \
+		echo " Health check passed"; \
 	else \
-		echo "❌ Health check failed"; \
+		echo " Health check failed"; \
 		exit 1; \
 	fi
 
 package: ## Package Helm chart
-	@echo "📦 Packaging Helm chart..."
+	@echo " Packaging Helm chart..."
 	helm package $(CHART_PATH)
-	@echo "✅ Chart packaged"
+	@echo " Chart packaged"
 
 clean: ## Clean temporary files
-	@echo "🧹 Cleaning..."
+	@echo " Cleaning..."
 	rm -f *.tgz
-	@echo "✅ Cleaned"
+	@echo " Cleaned"
 
 validate-k8s: ## Validate Kubernetes connection
-	@echo "🔍 Validating Kubernetes connection..."
+	@echo " Validating Kubernetes connection..."
 	kubectl cluster-info
 	kubectl get nodes
-	@echo "✅ Connection validated"
+	@echo " Connection validated"

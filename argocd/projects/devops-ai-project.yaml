@@ -10,7 +10,7 @@ spec:
 
   # Source repositories
   sourceRepos:
-    - 'https://github.com/your-username/DevOps-AI-Agent-Infra.git'
+    - 'https://github.com/ines312692/DevOps-AI-Agent-Infra.git'
     - 'https://github.com/ines312692/DevOps-AI-Agent.git'
 
   # Destination clusters and namespaces

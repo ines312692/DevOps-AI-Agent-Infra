@@ -12,7 +12,7 @@ spec:
   project: devops-ai
 
   source:
-    repoURL: https://github.com/ines31/DevOps-AI-Agent-Infra.git
+    repoURL: https://github.com/ines312692/DevOps-AI-Agent-Infra.git
     targetRevision: main
     path: helm/devops-ai-agent
     helm:

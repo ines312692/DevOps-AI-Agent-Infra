@@ -54,7 +54,7 @@ spec:
                       - production
       containers:
         - name: devops-ai-agent
-          image: your-registry/devops-ai-agent:1.1.0
+          image: inestmimi123/devops-ai-agent:1.1.0
           imagePullPolicy: Always
           ports:
             - name: http

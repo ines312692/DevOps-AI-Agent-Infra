@@ -135,10 +135,8 @@ else
 fi
 
 echo ""
-log_success "═══════════════════════════════════════════════"
 log_success "  Blue-Green switch completed successfully!"
 log_success "  Active deployment: ${COLOR^^}"
-log_success "═══════════════════════════════════════════════"
 echo ""
 
 # Show next steps
