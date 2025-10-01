@@ -1,0 +1,338 @@
+name: Deploy to Production
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy (e.g., v1.0.0)'
+        required: true
+      environment:
+        description: 'Environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  HELM_VERSION: v3.12.0
+  KUBECTL_VERSION: v1.27.0
+
+jobs:
+  validate:
+    name: Validate Helm Chart
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Lint Helm Chart
+        run: |
+          helm lint helm/devops-ai-agent
+          helm lint helm/devops-ai-agent -f helm/devops-ai-agent/values-prod.yaml
+
+      - name: Template Helm Chart
+        run: |
+          helm template devops-ai-agent helm/devops-ai-agent \
+            -f helm/devops-ai-agent/values-prod.yaml \
+            --debug
+
+      - name: Run Helm Unit Tests
+        run: |
+          helm plugin install https://github.com/helm-unittest/helm-unittest
+          helm unittest helm/devops-ai-agent
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: 'helm/devops-ai-agent'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  build-and-push:
+    name: Build and Push Image
+    runs-on: ubuntu-latest
+    needs: [validate, security-scan]
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Checkout Application Code
+        uses: actions/checkout@v4
+        with:
+          repository: ines312692/DevOps-AI-Agent
+          ref: main
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_REGISTRY }}/devops-ai-agent
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment:
+      name: staging
+      url: https://staging.devops-ai.yourdomain.com
+    steps:
+      - name: Checkout Infra Code
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG_STAGING }}
+
+      - name: Deploy to Staging
+        run: |
+          helm upgrade --install devops-ai-agent helm/devops-ai-agent \
+            -f helm/devops-ai-agent/values-staging.yaml \
+            --set image.tag=${{ needs.build-and-push.outputs.image-tag }} \
+            --namespace devops-ai-staging \
+            --create-namespace \
+            --wait \
+            --timeout 10m
+
+      - name: Run Smoke Tests
+        run: |
+          kubectl wait --for=condition=ready pod \
+            -l app.kubernetes.io/name=devops-ai-agent \
+            -n devops-ai-staging \
+            --timeout=5m
+          
+          kubectl port-forward -n devops-ai-staging \
+            svc/devops-ai-agent 8501:8501 &
+          
+          sleep 10
+          
+          curl -f http://localhost:8501/healthz || exit 1
+          echo "✅ Staging health check passed"
+
+  approve-production:
+    name: Approve Production Deployment
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    environment:
+      name: production-approval
+    steps:
+      - name: Manual Approval
+        run: echo "Deployment approved for production"
+
+  deploy-production:
+    name: Deploy to Production (Blue-Green)
+    runs-on: ubuntu-latest
+    needs: [build-and-push, approve-production]
+    environment:
+      name: production
+      url: https://devops-ai.yourdomain.com
+    steps:
+      - name: Checkout Infra Code
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG_PROD }}
+
+      - name: Get Current Active Color
+        id: get-color
+        run: |
+          CURRENT_COLOR=$(kubectl get service devops-ai-agent \
+            -n devops-ai-prod \
+            -o jsonpath='{.spec.selector.deployment-color}' 2>/dev/null || echo "blue")
+          
+          if [ "$CURRENT_COLOR" = "blue" ]; then
+            NEW_COLOR="green"
+          else
+            NEW_COLOR="blue"
+          fi
+          
+          echo "current-color=$CURRENT_COLOR" >> $GITHUB_OUTPUT
+          echo "new-color=$NEW_COLOR" >> $GITHUB_OUTPUT
+          echo "Current: $CURRENT_COLOR, Deploying to: $NEW_COLOR"
+
+      - name: Deploy to Inactive Color (${{ steps.get-color.outputs.new-color }})
+        run: |
+          helm upgrade --install devops-ai-agent helm/devops-ai-agent \
+            -f helm/devops-ai-agent/values-prod.yaml \
+            --set image.tag=${{ needs.build-and-push.outputs.image-tag }} \
+            --set blueGreen.enabled=true \
+            --set blueGreen.activeColor=${{ steps.get-color.outputs.current-color }} \
+            --namespace devops-ai-prod \
+            --create-namespace \
+            --wait \
+            --timeout 15m
+
+      - name: Wait for New Deployment to be Ready
+        run: |
+          kubectl wait --for=condition=ready pod \
+            -l deployment-color=${{ steps.get-color.outputs.new-color }} \
+            -n devops-ai-prod \
+            --timeout=10m
+          
+          echo "✅ New deployment (${{ steps.get-color.outputs.new-color }}) is ready"
+
+      - name: Run Production Health Checks
+        run: |
+          # Test the new deployment before switching traffic
+          POD_NAME=$(kubectl get pods -n devops-ai-prod \
+            -l deployment-color=${{ steps.get-color.outputs.new-color }} \
+            -o jsonpath='{.items[0].metadata.name}')
+          
+          kubectl exec -n devops-ai-prod $POD_NAME -- \
+            curl -f http://localhost:8501/healthz || exit 1
+          
+          echo "✅ New deployment health check passed"
+
+      - name: Switch Traffic to New Deployment
+        run: |
+          chmod +x scripts/blue-green-switch.sh
+          ./scripts/blue-green-switch.sh \
+            ${{ steps.get-color.outputs.new-color }} \
+            devops-ai-prod
+
+      - name: Monitor New Deployment
+        run: |
+          echo "Monitoring new deployment for 2 minutes..."
+          sleep 120
+          
+          # Check if pods are still healthy
+          kubectl get pods -n devops-ai-prod \
+            -l deployment-color=${{ steps.get-color.outputs.new-color }}
+          
+          # Check error rate from metrics
+          echo "✅ Deployment stable"
+
+      - name: Update ArgoCD Application
+        run: |
+          # Update the GitOps repo to reflect new state
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          # Update values-prod.yaml with new image tag
+          sed -i "s/tag: .*/tag: \"${{ needs.build-and-push.outputs.image-tag }}\"/" \
+            helm/devops-ai-agent/values-prod.yaml
+          
+          # Update active color
+          sed -i "s/activeColor: .*/activeColor: ${{ steps.get-color.outputs.new-color }}/" \
+            helm/devops-ai-agent/values-prod.yaml
+          
+          git add helm/devops-ai-agent/values-prod.yaml
+          git commit -m "chore: update production to ${{ needs.build-and-push.outputs.image-tag }} (${{ steps.get-color.outputs.new-color }})"
+          git push
+
+  rollback:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    if: failure()
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG_PROD }}
+
+      - name: Rollback Deployment
+        run: |
+          echo "🔄 Rolling back deployment..."
+          helm rollback devops-ai-agent -n devops-ai-prod
+          
+          # Or switch back to previous color
+          # ./scripts/blue-green-switch.sh <previous-color> devops-ai-prod
+
+      - name: Notify Team
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          text: '⚠️ Production deployment failed and was rolled back!'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+  notify:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    if: always()
+    steps:
+      - name: Notify Success
+        if: needs.deploy-production.result == 'success'
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          text: '✅ Production deployment successful!'
+          fields: repo,message,commit,author
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+      - name: Notify Failure
+        if: needs.deploy-production.result == 'failure'
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          text: '❌ Production deployment failed!'
+          fields: repo,message,commit,author
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}

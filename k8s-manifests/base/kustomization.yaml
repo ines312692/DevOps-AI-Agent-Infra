@@ -1,0 +1,50 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: devops-ai-prod
+
+bases:
+  - ../../base
+
+commonLabels:
+  environment: production
+  tier: prod
+
+commonAnnotations:
+  environment: production
+  auto-sync: "false"
+  manual-approval: "required"
+
+namespace: devops-ai-prod
+
+# Blue-Green deployments (use these instead of standard deployment)
+resources:
+  - blue-green/deployment-blue.yaml
+  - blue-green/deployment-green.yaml
+  - blue-green/service.yaml
+  - blue-green/ingress.yaml
+
+patchesStrategicMerge:
+  - patches/pdb-patch.yaml
+  - patches/network-policy.yaml
+
+configMapGenerator:
+  - name: devops-ai-config
+    behavior: merge
+    literals:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - METRICS_SOURCE=prometheus
+      - DETECTION_METHOD=isolation_forest
+      - PROMETHEUS_URL=http://prometheus-server.monitoring:9090
+      - ENABLE_ALERTS=true
+      - SLACK_NOTIFICATIONS=true
+
+images:
+  - name: devops-ai-agent
+    newName: your-registry/devops-ai-agent
+    newTag: "1.0.0"  # Updated by CI/CD
+
+namePrefix: prod-
+
+# No replica override for prod (managed by HPA and blue-green)

@@ -1,0 +1,50 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: devops-ai-dev
+
+# Reference to base
+bases:
+  - ../../base
+
+# Dev-specific labels
+commonLabels:
+  environment: development
+  tier: dev
+
+# Dev-specific annotations
+commonAnnotations:
+  environment: development
+  auto-sync: "true"
+
+# Override namespace in all resources
+namespace: devops-ai-dev
+
+# Patches for dev environment
+patchesStrategicMerge:
+  - patches/deployment-patch.yaml
+  - patches/service-patch.yaml
+
+# ConfigMap generator for dev
+configMapGenerator:
+  - name: devops-ai-config
+    behavior: merge
+    literals:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=DEBUG
+      - METRICS_SOURCE=csv
+      - DETECTION_METHOD=rolling_zscore
+
+# Images override for dev
+images:
+  - name: devops-ai-agent
+    newName: your-registry/devops-ai-agent
+    newTag: dev-latest
+
+# Resource name prefix
+namePrefix: dev-
+
+# Replicas override
+replicas:
+  - name: devops-ai-agent
+    count: 1

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: devops-ai
+  labels:
+    name: devops-ai
+    app.kubernetes.io/part-of: devops-ai-agent
+    monitoring: enabled
+    istio-injection: disabled

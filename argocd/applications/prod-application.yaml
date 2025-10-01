@@ -1,0 +1,57 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: devops-ai-agent-prod
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: devops-ai
+
+  source:
+    repoURL: https://github.com/your-username/DevOps-AI-Agent-Infra.git
+    targetRevision: main
+    path: helm/devops-ai-agent
+    helm:
+      valueFiles:
+        - values-prod.yaml
+      parameters:
+        - name: image.tag
+          value: "1.0.0"  # Updated by CI/CD pipeline
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: devops-ai-prod
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas  # Ignore replica count changes (HPA manages this)
+
+  info:
+    - name: 'Environment'
+      value: 'Production'
+    - name: 'Owner'
+      value: 'DevOps Team'
+    - name: 'Support'
+      value: 'devops@example.com'
+
+  # Health assessment
+  revisionHistoryLimit: 10

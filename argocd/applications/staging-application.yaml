@@ -1,0 +1,69 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: devops-ai-staging
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/manifest-generate-paths: .
+    notifications.argoproj.io/subscribe.on-sync-succeeded.slack: devops-alerts
+    notifications.argoproj.io/subscribe.on-health-degraded.slack: devops-alerts
+spec:
+  project: devops-ai
+
+  source:
+    repoURL: https://github.com/your-username/DevOps-AI-Agent-Infra.git
+    targetRevision: main
+    path: helm/devops-ai-agent
+    helm:
+      valueFiles:
+        - values-staging.yaml
+      parameters:
+        - name: image.tag
+          value: "1.0.0-rc"  # Updated by CI/CD
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: devops-ai-staging
+
+  # Automatic sync with more conservative settings
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+      jsonPointers:
+        - /spec/metrics
+
+  revisionHistoryLimit: 10
+
+  info:
+    - name: 'Environment'
+      value: 'Staging'
+    - name: 'Auto-Sync'
+      value: 'Enabled'
+    - name: 'Purpose'
+      value: 'Pre-production testing'
