@@ -1,0 +1,98 @@
+{{- if not .Values.blueGreen.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "devops-ai-agent.fullname" . }}
+  labels:
+    {{- include "devops-ai-agent.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: {{ .Values.service.metricsPort }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "devops-ai-agent.selectorLabels" . | nindent 4 }}
+{{- else }}
+---
+# Main Service (points to active color)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "devops-ai-agent.fullname" . }}
+  labels:
+    {{- include "devops-ai-agent.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: {{ .Values.service.metricsPort }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "devops-ai-agent.selectorLabels" . | nindent 4 }}
+    deployment-color: {{ .Values.blueGreen.activeColor }}
+---
+# Blue Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "devops-ai-agent.fullname" . }}-blue
+  labels:
+    {{- include "devops-ai-agent.labels" . | nindent 4 }}
+    deployment-color: blue
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: {{ .Values.service.metricsPort }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "devops-ai-agent.selectorLabels" . | nindent 4 }}
+    deployment-color: blue
+---
+# Green Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "devops-ai-agent.fullname" . }}-green
+  labels:
+    {{- include "devops-ai-agent.labels" . | nindent 4 }}
+    deployment-color: green
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: {{ .Values.service.metricsPort }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "devops-ai-agent.selectorLabels" . | nindent 4 }}
+    deployment-color: green
+{{- end }}
